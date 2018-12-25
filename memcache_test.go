@@ -11,12 +11,17 @@ type testCacheData struct {
 	data []byte
 }
 
-func (tc *testCacheData) GetNodeID() string {
+func (tc *testCacheData) GetID() string {
 	return tc.id
 }
 
-func (tc *testCacheData) GetNodeBytes() []byte {
-	return tc.data
+func (tc *testCacheData) GetBytes() ([]byte, error) {
+	return tc.data, nil
+}
+
+func (tc *testCacheData) FillData() error {
+	tc.data = []byte(tc.id)
+	return nil
 }
 
 func TestAddAndGet(t *testing.T) {
@@ -24,13 +29,12 @@ func TestAddAndGet(t *testing.T) {
 	cache := NewMemCacheMap(1, 1000, ttl)
 	data := new(testCacheData)
 	data.id = "1"
-	data.data = []byte("1")
-	err := cache.Add(data)
+	err := cache.AsyncAdd(data)
 	if err != nil {
 		t.Error("Error add data")
 		return
 	}
-	err = cache.Add(data)
+	err = cache.AsyncAdd(data)
 	if err == nil {
 		t.Error("Error test duplicate add")
 		return
@@ -40,7 +44,7 @@ func TestAddAndGet(t *testing.T) {
 		data: []byte("2"),
 	}
 
-	err = cache.Add(data2)
+	err = cache.AsyncAdd(data2)
 	if err != nil {
 		t.Error("Error add data")
 		return
@@ -50,7 +54,13 @@ func TestAddAndGet(t *testing.T) {
 		t.Error("Error get data")
 		return
 	}
-	if !bytes.Equal(d.GetNodeBytes(), data.data) {
+	getByte, err := d.GetBytes()
+	oriByte, err := data.GetBytes()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if !bytes.Equal(getByte, oriByte) {
 		t.Error("Error get data with wrong content")
 		return
 	}

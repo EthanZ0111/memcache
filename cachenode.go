@@ -6,9 +6,11 @@ type cacheNode struct {
 	createTime time.Time
 	ttl        time.Duration
 	data       CacheData
+	dataError  error
 }
 
 type CacheData interface {
-	GetNodeID() string
-	GetNodeBytes() []byte
+	GetID() string
+	GetBytes() ([]byte, error)
+	FillData() error
 }

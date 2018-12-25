@@ -2,13 +2,12 @@ package memcache
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 )
 
 type MemCacheMap struct {
-	cache     map[string]cacheNode
+	cache     map[string]*cacheNode
 	ttl       time.Duration
 	lock      sync.RWMutex
 	clearRate time.Duration
@@ -40,32 +39,44 @@ func NewMemCacheMap(cacheSize int, clearRate int, ttl int) *MemCacheMap {
 		ttl = DefalutTTL
 	}
 	c.ttl = time.Millisecond * time.Duration(ttl)
-	c.cache = make(map[string]cacheNode, cacheSize)
+	c.cache = make(map[string]*cacheNode, cacheSize)
 	c.clearRate = time.Millisecond * time.Duration(clearRate)
 	go c.clearLoop()
 	return c
 }
 
-func (c *MemCacheMap) Add(data CacheData) error {
-	id := data.GetNodeID()
+// AsyncAdd : will download or build data bytes call FillData() with async mode
+func (c *MemCacheMap) AsyncAdd(data CacheData) error {
+	id := data.GetID()
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if _, ok := c.cache[id]; ok {
 		return ExistError
 	}
-	c.cache[id] = cacheNode{
+	c.cache[id] = &cacheNode{
 		data:       data,
 		createTime: time.Now(),
 		ttl:        c.ttl,
+		dataError:  nil,
 	}
+	go func() {
+		err := data.FillData()
+		c.lock.Lock()
+		c.cache[id].dataError = err
+		c.lock.Unlock()
+	}()
 	return nil
 }
 
 func (c *MemCacheMap) Get(id string) (CacheData, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	if c, ok := c.cache[id]; ok {
-		return c.data, nil
+	if data, ok := c.cache[id]; ok {
+		if data.dataError != nil {
+			delete(c.cache, id)
+			return nil, data.dataError
+		}
+		return data.data, nil
 	}
 	return nil, NotExistError
 }
@@ -76,7 +87,6 @@ func (c *MemCacheMap) clearLoop() {
 		now = time.Now()
 		c.lock.Lock()
 		for k, v := range c.cache {
-			fmt.Println(v.createTime, v.ttl, v.createTime.Add(v.ttl), now)
 			if v.createTime.Add(v.ttl).Sub(now) <= 0 {
 				delete(c.cache, k)
 			}
