@@ -2,6 +2,7 @@ package memcache
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -41,7 +42,7 @@ func NewMemCacheMap(cacheSize int, clearRate int, ttl int) *MemCacheMap {
 	c.ttl = time.Millisecond * time.Duration(ttl)
 	c.cache = make(map[string]cacheNode, cacheSize)
 	c.clearRate = time.Millisecond * time.Duration(clearRate)
-
+	go c.clearLoop()
 	return c
 }
 
@@ -70,16 +71,17 @@ func (c *MemCacheMap) Get(id string) (CacheData, error) {
 }
 
 func (c *MemCacheMap) clearLoop() {
-	// var now time.Time
+	var now time.Time
 	for {
-		// now = time.Now()
+		now = time.Now()
 		c.lock.Lock()
-		// for k, v := range c.cache {
-		// 	if v.createTime.Add(v.ttl).Sub(now) <= 0 {
-
-		// 	}
-		// }
+		for k, v := range c.cache {
+			fmt.Println(v.createTime, v.ttl, v.createTime.Add(v.ttl), now)
+			if v.createTime.Add(v.ttl).Sub(now) <= 0 {
+				delete(c.cache, k)
+			}
+		}
 		c.lock.Unlock()
-		time.Sleep(time.Millisecond * c.clearRate)
+		time.Sleep(c.clearRate)
 	}
 }
