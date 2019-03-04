@@ -24,6 +24,10 @@ func (tc *testCacheData) FillData() error {
 	return nil
 }
 
+func (tc *testCacheData) GetError() error {
+	return nil
+}
+
 func TestAddAndGet(t *testing.T) {
 	ttl := 3000
 	cache := NewMemCacheMap(1, 1000, ttl)
